@@ -1,0 +1,581 @@
+import khoury.CapturedResult
+import khoury.EnabledTest
+import khoury.captureResults
+import khoury.fileReadAsList
+import khoury.input
+import khoury.isAnInteger
+import khoury.reactConsole
+import khoury.runEnabledTests
+import khoury.testSame
+
+
+// data class to represent a question with its answer
+data class Question(
+    val question: String,
+    val answer: String,
+)
+
+// data class to represent a question with its answer and tags
+data class TaggedQuestion(
+    val question: String,
+    val answer: String,
+    val tags: List<String>
+)
+
+data class QuestionBank(
+    val topic: String,
+    val questions: List<TaggedQuestion>,
+)
+
+// data class to represent a question bank with a topic and a list of questions
+data class QuestionBank(
+    val topic: String,
+    val questions: List<Question>,
+)
+
+// Data class to track the state of the question bank during study
+data class QuestionBankState(
+    val questionBank: QuestionBank,
+    val currentQuestionIndex: Int,
+    val currentState: QuestionStateData,
+    val correctAnswers: Int,
+)
+
+// enumeration to represent the different states when interacting with the user
+enum class QuestionState { SHOWQUESTION, SHOWANSWER, USERRESPONSE, CORRECTREPORT, INCORRECTREPORT }
+
+// data class for managing the state of an individual question
+data class QuestionStateData(
+    val question: Question,
+    val questionState: QuestionState,
+)
+/**
+* The bank is either completed,
+* showing a question or showing
+* an answer
+*/
+
+
+
+
+// messages for feedback based on overall performance
+val tryHarder = "Study harder next time! Bye"
+val keepPracticing = "Good Job and keep practicing! Bye"
+val amazing = "Amazing! Bye"
+
+// messages for feedback based on question performance
+val correctAnswer = "Keep it up"
+val incorrectAnswer = "Keep going!"
+
+// create a bank of factorials
+val fiveFactorialsBank = generateFactorialsQuestionBank(5)
+// create a bank of swimming related questions
+val swimmingBank = QuestionBank("Swimming Trivia", readQuestionBank("Swimming.txt"))
+
+// manually creating harry potter questions
+val questionOne = TaggedQuestion("What is the difference between monkshood and wolfsbane?", "They are the same plant", listOf("hard", "Harry Potter"))
+val questionTwo = Question("Where would you look to find a bezoar?", "The stomach of a goat")
+val questionThree = Question("How many Horcruxes did Voldemort create?", "Seven")
+val questionFour = Question("What is the best remedy after a Dementor encounter?", "Chocolate")
+val questionFive = Question("What are the names of the four houses in Hogwarts?", "Gryffindor, Hufflepuff, Ravenclaw, and Slytherin")
+val hpList = listOf(questionOne, questionTwo, questionThree, questionFour, questionFive)
+
+// creating a list of harry potter questions
+val harryPotterQuestionBank = QuestionBank("Harry Potter Trivia", hpList)
+
+// creating a list of cube questions
+val fourCubeBank = generateCubesQuestionBank(4)
+
+val emptyMusicBank = QuestionBank("Music Trivia", listOf<Question>())
+
+// gather all the question banks
+val questionBanks: List<QuestionBank> = listOf(fiveFactorialsBank, swimmingBank, harryPotterQuestionBank, fourCubeBank, emptyMusicBank)
+
+fun play() {
+    // choose a question bank
+    val selectedBank = chooseBank(questionBanks)
+
+    // notify the user of their selected bank and start the quiz
+    println("You selected: ${selectedBank.topic}")
+
+    // go over all the questions and answers in the selected bank with the user
+    studyQuestionBank(selectedBank) // Call the function
+}
+
+// Generating factorial questions
+fun generateFactorialsQuestionBank(number: Int): QuestionBank {
+    // defining a range of numbers and making it into a list
+    val numbers = (1..number).toList()
+
+    // generate an question object for each number
+    val questions = numbers.map(::getFactorialQuestion)
+
+    // return a question bank for factorials
+    return QuestionBank("Factorial Knowledge", questions)
+}
+
+// Function to generate a factorial question
+fun getFactorialQuestion(num: Int): Question = Question("What is $num factorial?", getFactorial(num).toString())
+
+// Recursively calculate factorial
+fun getFactorial(num: Int): Int = if (num == 1 || num == 0) 1 else num * getFactorial(num - 1)
+
+// Get a question bank of cubes
+fun generateCubesQuestionBank(count: Int): QuestionBank {
+    val questions = (1..count).toList().map(::getQuestionsCubes)
+    return QuestionBank("Perfect Cubes", questions)
+}
+
+// get the question and answer for each number's cube
+fun getQuestionsCubes(num: Int): Question = Question("What is $num cubed?", (num * num * num).toString())
+
+// Convert string to a question
+fun stringToQuestion(question: String): Question {
+    val part = question.split("|")
+    // Create a question from the split string
+    return Question(part[0], part[1])
+}
+
+// convert question to a string
+fun questionToString(q: Question): String = "${q.question}|${q.answer}"
+
+// Function to check if the answer is correct
+fun isCorrect(input: String): Boolean = input.lowercase().startsWith("y")
+
+fun taggedAs(q: TaggedQuestion, tag: String): Boolean {
+    return q.tags.any {it == tag}
+}
+
+fun taggedQuestionToString(q: TaggedQuestion): String {
+    var string = "${q.question}|${q.answer}|"
+    for(x in q.tags.indices) {
+        if (x != (q.tags.size-1)) {
+            string += q.tags[x]
+        } else {
+            string += "${q.tags[x]},"
+        }
+    }
+}
+
+fun stringToTaggedQuestion(string: String) {
+    val part = string.split("|")
+    val tags = part[2].split(",")
+    return TaggedQuestion(part[0], part[1], tags)
+}
+
+
+// STEP THREE
+enum class QuestionBankState { COMPLETED, QUESTIONING, ANSWERING }
+/**
+* Basic functionality of any question bank
+*/
+interface IQuestionBank {
+    /**
+    * Returns the state of a question bank.
+    */
+    fun getState(): QuestionBankState
+        /**
+        * Returns the currently visible text (or null if completed).
+        */
+    fun getText(): String?
+        /**
+        * Returns the number of question-answer pairs.
+        * (Size does not change when a question is put
+        * to the end of the question bank.)
+        */
+    fun getSize(): Int
+        /**
+        * Shifts from question to answer. If not QUESTIONING,
+        * returns the same IQuestionBank.
+        */
+    fun show(): IQuestionBank
+        /**
+        * Shifts from an answer to the next question (or completion).
+        * If the current question was answered correctly, it discards
+        * it. Otherwise it cycles the question to the end.
+        *
+        * If not ANSWERING, returns the same IQuestionBank.
+        */
+    fun next(correct: Boolean): IQuestionBank
+}
+
+class ListBasedQuestionBank(
+    private val questions: List<TaggedQuestion>, // Original list of questions for reference
+    private val currentState: QuestionBankState = QuestionBankState.QUESTIONING, // Current state of the question bank
+    private val currentIndex: Int = 0, // Index of the current question in the remainingQuestions list
+    private val remainingQuestions: List<TaggedQuestion> = questions // list of questions yet to be answered
+) : IQuestionBank {
+
+    /**
+     * Determines the current state of the question bank.
+     * - COMPLETED: No more questions left in the remainingQuestions list.
+     * - QUESTIONING: Currently showing a question.
+     * - ANSWERING: Currently showing the answer to a question.
+     */
+    override fun getState(): QuestionBankState {
+        return when {
+            remainingQuestions.isEmpty() -> QuestionBankState.COMPLETED // No questions left
+            currentState == QuestionBankState.ANSWERING -> QuestionBankState.ANSWERING // Showing an answer
+            else -> QuestionBankState.QUESTIONING // Default state is showing a question
+        }
+    }
+
+    
+    override fun getSize(): Int {
+        return questions.size
+    }
+
+    override fun getText(): String? {
+        return when (currentState) {
+            QuestionBankState.QUESTIONING -> remainingQuestions.getOrNull(currentIndex)?.question // Current question text
+            QuestionBankState.ANSWERING -> remainingQuestions.getOrNull(currentIndex)?.answer // Current answer text
+            QuestionBankState.COMPLETED -> null // No text available in completed state
+        }
+    }
+
+
+    override fun show(): IQuestionBank {
+        return if (currentState == QuestionBankState.QUESTIONING) {
+            ListBasedQuestionBank(
+                questions = questions,
+                currentState = QuestionBankState.ANSWERING,
+                currentIndex = currentIndex,
+                remainingQuestions = remainingQuestions
+            )
+        } else {
+            this // No state change if not in QUESTIONING
+        }
+    }
+
+    override fun next(correct: Boolean): IQuestionBank {
+        return if (currentState == QuestionBankState.ANSWERING) {
+            // Create a new remainingQuestions list based on whether the answer was correct
+            val updatedQuestions = if (correct) {
+                remainingQuestions.filterIndexed { index, _ -> index != currentIndex } // Remove correctly answered question
+            } else {
+                remainingQuestions + remainingQuestions[currentIndex] // Requeue the current question at the end
+            }
+            ListBasedQuestionBank(
+                questions = questions,
+                currentState = QuestionBankState.QUESTIONING, // Back to QUESTIONING state
+                currentIndex = if (updatedQuestions.isEmpty()) 0 else currentIndex % updatedQuestions.size, // Adjust index for next question
+                remainingQuestions = updatedQuestions
+            )
+        } else {
+            this // No state change if not in ANSWERING
+        }
+    }
+}
+
+class AutoGeneratedQuestionBank(
+    private val size: Int,
+    private val currentState: QuestionBankState = QuestionBankState.QUESTIONING, // Current state of the question bank
+    private val currentIndex: Int = 0, // Index of the current question in the remainingQuestions list
+    private val correctQuestions: List<Int> = emptyList()
+) : IQuestionBank {
+
+    override fun getState(): QuestionBankState {
+        return when {
+            correctQuestions.size == size -> QuestionBankState.COMPLETED // All questions answered correctly
+            currentState == QuestionBankState.ANSWERING -> QuestionBankState.ANSWERING // Showing an answer
+            else -> QuestionBankState.QUESTIONING // Default state is showing a question
+        }
+    }
+
+    override fun getSize(): Int {
+        return size
+    }
+
+    override fun getText(): String? {
+        return when (currentState) {
+            QuestionBankState.QUESTIONING -> "What is the cube of ${currentIndex + 1}?" // autoenerate question
+            QuestionBankState.ANSWERING -> "The cube of ${currentIndex + 1} is ${(currentIndex + 1) * (currentIndex + 1) * (currentIndex + 1)}." // autogenerate answer
+            QuestionBankState.COMPLETED -> null // No text available in completed state
+        }
+    }
+
+    override fun show(): IQuestionBank {
+        return if (currentState == QuestionBankState.QUESTIONING) {
+            AutoGeneratedQuestionBank(
+                size = size,
+                currentState = QuestionBankState.ANSWERING,
+                currentIndex = currentIndex,
+                correctQuestions = correctQuestions
+            )
+        } else {
+            this // No state change if not in QUESTIONING
+        }
+    }
+
+    override fun next(correct: Boolean): IQuestionBank {
+        return if (currentState == QuestionBankState.ANSWERING) {
+            val updatedQuestions = if (correct) {
+                correctQuestions + currentIndex // Add current index to the list
+            } else {
+                correctQuestions // No change if answered incorrectly
+            }
+            val nextIndex = (currentIndex + 1) % size // Move to the next question circularly
+            AutoGeneratedQuestionBank(
+                size = size,
+                currentState = QuestionBankState.QUESTIONING, // Back to QUESTIONING state
+                currentIndex = nextIndex,
+                correctQuestions = updatedQuestions
+            )
+        } else {
+            this // No state change if not in ANSWERING
+        }
+    }
+
+}
+// END OF STEP THREE
+
+// STEP FOUR
+interface IMenuOption {
+    fun getTitle(): String
+}
+
+data class NamedMenuOption(
+    val option: T,
+    val title: String
+) : IMenuOption {
+    override fun getTitle(): String = title
+}
+
+data class MenuState(
+    val listOptions: List<NamedMenuOption>,
+    val validResponse: Boolean,
+    val choice: Int
+)
+
+fun chooseMenu(){
+    val chooseMenu = listOf(
+        NamedMenuOption(0, "QUIT")
+        NamedMenuOption(1, "HARRYPOTTER")
+        NamedMenuOption(2, "BEZOAR")
+        NamedMenuOption(3, "VOLDEMORT")
+        NamedMenuOption(4, "DEMENTOR")
+        NamedMenuOption(5, "PLANTS")
+    )
+
+    val initialState = MenuState(chooseMenu, false, -1)
+    /**
+     * Your code here.
+     * 
+     * Call reactConsole (with appropriate handlers)
+     * and return the selected option (or null).
+     */
+    return reactConsole(initialState, ::menuStateToText, ::nextMenuState, ::isDone, ::printUserChoice)
+}
+
+fun menuStateToText(state: MenuState): String {
+    val textOptions =  state.listOptions.forEachIndexed { 
+        index, title ->"${index}. ${title}"
+    }
+
+    val string = "${textOptions[0]}"
+
+    for(x in 1..textOptions.size){
+        string += "\ntextOptions[x]"
+    }
+    return string
+}
+
+fun nextMenuState(state: MenuState, input: String) {
+    if (isAnInteger(input)) {
+        if(input.toInt() in 0..state.listOptions.size) {
+            return MenuState(chooseMenu, true, input.toInt())
+        } else {
+            println("Please input a valid number between 0 and ${state.listOptions.size}")
+            return state
+        }
+    } else {
+        println("Please input a valid number between 0 and ${state.listOptions.size}")
+        return state
+    }
+}
+
+fun isDone(state: MenuState): Boolean = state.validResponse
+
+fun printUserChoice(state: MenuState): String{
+    if(state.choice == 0){
+        return "Quitting"
+    } else {
+        return "You chose to study ${state.listOptions[state.choice]}"
+    }
+}
+
+
+// STEP FIVE
+typealias Classifier = (String) -> Boolean
+
+data class LabeledExample<E, L>(val example: E, val label: L)
+
+val dataset: List<LabeledExample<String, Boolean>> =
+    listOf(
+        /* Some positive examples */
+        LabeledExample("yes", true),
+        LabeledExample("y", true),
+        LabeledExample("indeed", true),
+        LabeledExample("aye", true),
+        LabeledExample("oh yes", true),
+        LabeledExample("affirmative", true),
+        LabeledExample("roger", true),
+        LabeledExample("uh huh", true),
+        LabeledExample("true", true),
+        /* Some negative examples */
+        LabeledExample("no", false),
+        LabeledExample("n", false),
+        LabeledExample("nope", false),
+        LabeledExample("negative", false),
+        LabeledExample("nay", false),
+        LabeledExample("negatory", false),
+        LabeledExample("uh uh", false),
+        LabeledExample("absolutely not", false),
+        LabeledExample("false", false),
+    )
+
+/**
+ * Heuristically determines if the supplied string
+ * is positive based on the first letter being Y!
+ *
+ * This is our naive classifier.
+ */
+fun naiveClassifier(s: String): Boolean = s.uppercase().startsWith("Y")
+
+typealias DistanceFunction<T> = (T, T) -> Int
+
+data class ResultWithVotes<L>(val label: L, val votes: Int)
+
+fun <T> topK(
+    items: List<T>,
+    metric: (T) -> Int,
+    k: Int
+): List<T> {
+    // Sort items by metric in descending order and take the top-k items
+    val mutableItems = items.toMutableList()
+
+    val sortedDescending = mutableItems.sortBy(metric).reversed()
+
+    return sortedDescending.take(k)
+}
+
+fun levenshteinDistance(s1: String, s2: String): Int {
+    // Step 1: Handle edge cases for empty strings
+    if (s1.isEmpty()) return s2.length
+    if (s2.isEmpty()) return s1.length
+
+    // Step 2: Initialize `previousRow` with base cases for transforming an empty prefix of `s1` to prefixes of `s2`
+    var previousRow = (0..s2.length).toList() 
+
+    // Step 3: Iterate through each character in first string
+    for (i in 1..s1.length) {
+        // Initialize `currentRow` for the current character in first string
+        val currentRow = mutableListOf(i)
+
+        // Step 4: Iterate through each character in the second string
+        for (j in 1..s2.length) {
+            // Determine the substitution cost (0 if characters match, 1 otherwise)
+            val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+
+            // Compute the minimum cost of the three operations:
+            // 1. Deletion (remove from `s1`)
+            // 2. Insertion (add to `s2`)
+            // 3. Substitution (replace a character)
+            val minCost = minOf(
+                previousRow[j] + 1,    // Deletion
+                currentRow[j - 1] + 1, // Insertion
+                previousRow[j - 1] + cost // Substitution
+            )
+
+            // Add the calculated cost to the current row
+            currentRow.add(minCost)
+        }
+
+        // Update `previousRow` for the next iteration
+        previousRow = currentRow
+    }
+
+    // Step 5: Return the final value, which represents the Levenshtein distance
+    return previousRow.last()
+}
+
+
+/**
+* Uses k-NN to predict the label for a supplied query
+* given a labelled data set and a distance function.
+*/
+fun <E, L> nnLabel(
+    query: E,
+    dataset: List<LabeledExample<E, L>>,
+    distFn: DistanceFunction<E>,
+    k: Int,
+): ResultWithVotes<L> {
+    /* See starter code for help. */
+    
+    //For each element in the dataset, find the distance.
+    //You can end up with a pair
+    val distances = dataset.map { element -> Pair(element, distFn(element.example, query)) }
+
+    // Step 2: Sort by distance (ascending) and take the closest k elements
+    val topK = distances.sortedBy { pair -> pair.second }.take(k).map { pair -> pair.first }
+
+    // Step 3: Extract labels of the k-closest examples
+    val labels = topK.map { example -> example.label }
+
+    // Step 4: Count occurrences of each label
+    val labelCounts = labels.groupingBy { label -> label }.eachCount()
+
+    // Step 5: Find the label with the highest count and its vote count
+    val (mostCommonLabel, votes) = labelCounts.maxByOrNull { entry -> entry.value }!!
+
+    // Step 6: Return the result
+    return ResultWithVotes(mostCommonLabel, votes)
+}
+
+fun classifier(input: String): ResultWithVotes<Boolean> {
+    // Step 1: Convert the input to lowercase to handle case insensitivity
+    val lowerCaseInput = input.lowercase()
+
+    // Step 2: Check if the query exists in the dataset using `any`
+    val exists = dataset.any { it.example == lowerCaseInput }
+
+    // Step 3: If it exists, find its index using `indexOfFirst`
+    if (exists) {
+        val index = dataset.indexOfFirst { it.example == lowerCaseInput }
+        val label = dataset[index].label
+        return ResultWithVotes(label, 3) // Return the label with 3 votes (full confidence)
+    }
+
+    // Step 4: Otherwise, perform 3-NN classification
+    return nnLabel(
+        lowerCaseInput,
+        dataset,
+        ::levenshteinDistance,
+        3
+    )
+}
+
+data class StudyQuestionBankResult(
+    val questions: Int,
+    val attempts: Int,
+)
+
+fun studyQuestionBank(bank: QuestionBank): StudyQuestionBankResult {
+    val initialState = StudyQuestionBankResult(bank.questions, 0, )
+
+    reactConsole
+}
+
+fun bankStateToText(state: StudyQuestionBankResult): String {
+    return "${state.questions[0].question}\n-\n${state.questions[0].answer}\nDid you get it right? (yes/no)"
+}
+
+fun bankNextState(state: StudyQuestionBankResult, input: String): StudyQuestionBankResult {
+    val response = input.lowercase()
+
+    val classification = classifier(response)
+
+
+}
+
+play()
