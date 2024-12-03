@@ -577,5 +577,6 @@ fun bankNextState(state: StudyQuestionBankResult, input: String): StudyQuestionB
 
 
 }
+hello
 
 play()
