@@ -74,8 +74,8 @@ val swimmingBank = QuestionBank("Swimming Trivia", readQuestionBank("Swimming.tx
 
 // manually creating harry potter questions
 val questionOne = TaggedQuestion("What is the difference between monkshood and wolfsbane?", "They are the same plant", listOf("hard", "Harry Potter"))
-val questionTwo = Question("Where would you look to find a bezoar?", "The stomach of a goat")
-val questionThree = Question("How many Horcruxes did Voldemort create?", "Seven")
+val questionTwo = TaggedQuestion("Where would you look to find a bezoar?", "The stomach of a goat", listOf("hard", "Harry Potter"))
+val questionThree = TaggedQuestion("How many Horcruxes did Voldemort create?", "Seven", listOf("hard", "Harry Potter"))
 val questionFour = Question("What is the best remedy after a Dementor encounter?", "Chocolate")
 val questionFive = Question("What are the names of the four houses in Hogwarts?", "Gryffindor, Hufflepuff, Ravenclaw, and Slytherin")
 val hpList = listOf(questionOne, questionTwo, questionThree, questionFour, questionFive)
