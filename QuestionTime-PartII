@@ -557,26 +557,73 @@ fun classifier(input: String): ResultWithVotes<Boolean> {
 
 data class StudyQuestionBankResult(
     val questions: Int,
-    val attempts: Int,
+    val attempts: Int
+)
+
+data class StudyQuestionBankState(
+    val questionList: List<TaggedQuestion>, // The list of questions
+    val attempts: Int, // The number of attempts made
+    val sizeList: Int, // The initial number of question
+    val isShowingAnswer: Boolean   
 )
 
 fun studyQuestionBank(bank: QuestionBank): StudyQuestionBankResult {
-    val initialState = StudyQuestionBankResult(bank.questions, 0, )
-
-    reactConsole
+    // Initialize the state with the question bank, no attempts made, and the original size of the question bank
+    val initialState = StudyQuestionBankState(bank.questions, 0, bank.questions.size, false)
+    // use reactConsole to interact with the user
+    val finalState = reactConsole(initialState, ::bankStateToText, ::bankNextState, ::bankIsDone)
+    // Return the result: the number of questions and the number of attempts made.
+    return StudyQuestionBankResult(bank.questions.size, finalState.attempts)
 }
 
+// Converts the current state into a readable string
 fun bankStateToText(state: StudyQuestionBankResult): String {
-    return "${state.questions[0].question}\n-\n${state.questions[0].answer}\nDid you get it right? (yes/no)"
+    // if isShowingAnswer is true, show the answer to the first question in the list
+    if(state.isShowingAnswer) {
+        return "${state.questions[0].answer}\nDid you get it right? (yes/no)"
+    }
+    // Otherwise, print out the question to the first question in the list
+    return "${state.questions[0].question}\n-"
 }
 
 fun bankNextState(state: StudyQuestionBankResult, input: String): StudyQuestionBankResult {
+    if(!state.isShowingAnswer) {
+        // If the answer is not being shown yet, set the state to show the answer
+        return StudyQuestionBankResult(state.questionList, state.attempts, state.sizeList, true)
+    }
+    // convert the response to lowercase
     val response = input.lowercase()
-
+    // // Classify the input using the classifier function. 
     val classification = classifier(response)
+    // check is the label means correct and that we are confident
+    val isCorrect = (classification.label && (classification.votes == 3))
+    // Prepare the updated question list based on whether the answer was correct.
+    val updatedQuestionList = state.questionList
 
+    
+    if(isCorrect){
+        // if the answer is correct, remove the first question (index 0)
+        updatedQuestionList = state.questionList.drop(1)
+    } else {
+        // if the answer is wrong, move the question to the back of the list to answer it later
+        val wrongQuestion = state.questionList[0]
+        updatedQuestionList = state.questionList.drop(1) + wrongQuestion
+    }
 
+    // Return the updated state with the new question list and increase the attempt count
+    return StudyQuestionBankResult(updatedQuestionList, state.attempts+1, state.sizeList)
 }
+
+// Checks if all questions have been answered
+fun bankIsDone(state: StudyQuestionBankResult): Boolean{
+    return state.questionList.isEmpty()
+}
+
+fun printResults(state: StudyQuestionBankResult): String {
+    // Print the final results 
+    println("Bye. Questions: ${state.sizeList}, Attempts: ${state.attempts}")
+}
+
 
 
 play()
