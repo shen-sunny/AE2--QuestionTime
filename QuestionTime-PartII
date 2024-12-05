@@ -22,7 +22,7 @@ data class TaggedQuestion(
     val tags: List<String>
 )
 
-data class QuestionBank(
+data class TaggedQuestionBank(
     val topic: String,
     val questions: List<TaggedQuestion>,
 )
